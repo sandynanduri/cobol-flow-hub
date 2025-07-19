@@ -51,7 +51,7 @@ const Upload = () => {
     }
   ];
 
-  const currentStep = (uploadedFiles.length > 0 || repositories.length > 0) ? 1 : 0;
+  const currentStep = 0; // Stay on upload step until analysis starts
 
   return (
     <div className="min-h-screen bg-background">
