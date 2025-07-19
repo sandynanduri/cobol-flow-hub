@@ -1,8 +1,15 @@
 import React from 'react';
 import { ArrowRight, Zap, Shield, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 
 export const Hero: React.FC = () => {
+  const navigate = useNavigate();
+
+  const handleGetStarted = () => {
+    navigate('/upload');
+  };
+
   return (
     <div className="relative overflow-hidden bg-gradient-hero">
       {/* Background decoration */}
@@ -34,7 +41,7 @@ export const Hero: React.FC = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button variant="hero" size="lg" className="group">
+            <Button variant="hero" size="lg" className="group" onClick={handleGetStarted}>
               Get Started Now
               <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
             </Button>
