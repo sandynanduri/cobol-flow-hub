@@ -16,7 +16,17 @@ interface ProgressIndicatorProps {
 }
 
 export const ProgressIndicator = ({ steps, currentStep, className }: ProgressIndicatorProps) => {
-  const progressPercentage = ((currentStep + 1) / steps.length) * 100;
+  const getProgressPercentage = (step: number) => {
+    switch (step) {
+      case 0: return 0;   // Upload Assets: 0%
+      case 1: return 5;   // Analyze Code: 5%
+      case 2: return 60;  // Modernization Plan: 60%
+      case 3: return 100; // Implementation: 100%
+      default: return 0;
+    }
+  };
+  
+  const progressPercentage = getProgressPercentage(currentStep);
 
   const getStepIcon = (index: number) => {
     if (index < currentStep) {
