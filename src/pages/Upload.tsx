@@ -97,23 +97,15 @@ const Upload = () => {
             {/* Action Button */}
             {(uploadedFiles.length > 0 || repositories.length > 0) && (
               <div className="text-center animate-scale-in">
-                <div className="p-6 rounded-lg bg-gradient-card backdrop-blur-sm border border-border max-w-md mx-auto">
-                  <h3 className="text-lg font-semibold mb-2">Ready to Start?</h3>
-                  <p className="text-muted-foreground text-sm mb-4">
-                    {uploadedFiles.length > 0 && `${uploadedFiles.length} file(s) uploaded`}
-                    {uploadedFiles.length > 0 && repositories.length > 0 && ' • '}
-                    {repositories.length > 0 && `${repositories.length} repository(s) connected`}
-                  </p>
-                  <Button 
-                    variant="hero" 
-                    size="lg" 
-                    onClick={handleStartAnalysis}
-                    className="group"
-                  >
-                    Start Modernization Analysis
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                  </Button>
-                </div>
+                <Button 
+                  variant="hero" 
+                  size="lg" 
+                  onClick={handleStartAnalysis}
+                  className="group"
+                >
+                  Start Modernization Analysis
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </Button>
               </div>
             )}
           </div>
