@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import {
   ReactFlow,
   Node,
@@ -12,6 +12,9 @@ import {
   MiniMap,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Eye, EyeOff } from 'lucide-react';
 
 const initialNodes: Node[] = [
   {
@@ -111,14 +114,47 @@ const initialEdges: Edge[] = [
 export const DependencyGraph: React.FC = () => {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [showMiniMap, setShowMiniMap] = useState(true);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
   );
 
+  // Calculate minimap size based on node count
+  const minimapSize = useMemo(() => {
+    const nodeCount = nodes.length;
+    if (nodeCount <= 3) {
+      return { width: 120, height: 80 };
+    } else if (nodeCount <= 6) {
+      return { width: 150, height: 100 };
+    }
+    return { width: 200, height: 120 };
+  }, [nodes.length]);
+
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full relative">
+      {/* Minimap Toggle */}
+      <div className="absolute top-4 right-4 z-10">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMiniMap(!showMiniMap)}
+                className="bg-background/80 backdrop-blur-sm border-border hover:bg-accent"
+              >
+                {showMiniMap ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{showMiniMap ? 'Hide' : 'Show'} minimap - Navigate large dependency graphs</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -135,20 +171,43 @@ export const DependencyGraph: React.FC = () => {
         style={{ background: 'transparent' }}
       >
         <Background gap={20} size={1} color="hsl(var(--muted-foreground))" />
-        <MiniMap
-          nodeColor="hsl(var(--primary))"
-          nodeStrokeWidth={3}
-          pannable
-          zoomable
-          style={{
-            background: 'hsl(var(--background))',
-            border: '1px solid hsl(var(--border))',
-          }}
-        />
+        
+        {showMiniMap && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="react-flow__minimap-wrapper">
+                  <MiniMap
+                    nodeColor="hsl(var(--primary))"
+                    nodeStrokeColor="hsl(var(--primary-foreground))"
+                    nodeStrokeWidth={2}
+                    maskColor="hsl(var(--muted) / 0.3)"
+                    pannable
+                    zoomable
+                    style={{
+                      background: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '6px',
+                      boxShadow: '0 4px 6px -1px hsl(var(--muted-foreground) / 0.1)',
+                      width: `${minimapSize.width}px`,
+                      height: `${minimapSize.height}px`,
+                    }}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                <p>Minimap - Click and drag to navigate the dependency graph</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+        
         <Controls 
           style={{
-            background: 'hsl(var(--background))',
+            background: 'hsl(var(--card))',
             border: '1px solid hsl(var(--border))',
+            borderRadius: '6px',
+            boxShadow: '0 4px 6px -1px hsl(var(--muted-foreground) / 0.1)',
           }}
         />
       </ReactFlow>
