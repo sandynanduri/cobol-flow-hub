@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FileUpload } from '@/components/FileUpload';
 import { RepositoryLink } from '@/components/RepositoryLink';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import { BreadcrumbNavigation } from '@/components/BreadcrumbNavigation';
 import { ProgressIndicator } from '@/components/ProgressIndicator';
 
 const Upload = () => {
+  const navigate = useNavigate();
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [repositories, setRepositories] = useState<string[]>([]);
 
@@ -23,8 +25,8 @@ const Upload = () => {
 
   const handleStartAnalysis = () => {
     if (uploadedFiles.length > 0 || repositories.length > 0) {
-      // Here you would typically navigate to analysis page or trigger analysis
-      console.log('Starting analysis with:', { uploadedFiles, repositories });
+      // Navigate to dashboard page to show analysis results
+      navigate('/dashboard');
     }
   };
 
