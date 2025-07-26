@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import {
   ReactFlow,
   Node,
@@ -14,109 +14,46 @@ import {
 import '@xyflow/react/dist/style.css';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Eye, EyeOff } from 'lucide-react';
-
-const initialNodes: Node[] = [
-  {
-    id: '1',
-    type: 'default',
-    position: { x: 250, y: 100 },
-    data: { label: 'BRAKES.CBL' },
-    style: {
-      background: 'hsl(var(--primary))',
-      color: 'hsl(var(--primary-foreground))',
-      border: '2px solid hsl(var(--primary))',
-      borderRadius: '8px',
-      fontSize: '12px',
-      fontWeight: '500',
-    },
-  },
-  {
-    id: '2',
-    type: 'default',
-    position: { x: 100, y: 200 },
-    data: { label: 'EMPLOYEE.CPY' },
-    style: {
-      background: 'hsl(var(--background))',
-      color: 'hsl(var(--foreground))',
-      border: '2px dashed hsl(var(--destructive))',
-      borderRadius: '8px',
-      fontSize: '12px',
-      fontWeight: '500',
-    },
-  },
-  {
-    id: '3',
-    type: 'default',
-    position: { x: 400, y: 200 },
-    data: { label: 'TAX01' },
-    style: {
-      background: 'hsl(var(--background))',
-      color: 'hsl(var(--foreground))',
-      border: '2px dashed hsl(var(--destructive))',
-      borderRadius: '8px',
-      fontSize: '12px',
-      fontWeight: '500',
-    },
-  },
-  {
-    id: '4',
-    type: 'default',
-    position: { x: 500, y: 100 },
-    data: { label: 'UTIL01' },
-    style: {
-      background: 'hsl(var(--secondary))',
-      color: 'hsl(var(--secondary-foreground))',
-      border: '2px solid hsl(var(--secondary))',
-      borderRadius: '4px',
-      fontSize: '12px',
-      fontWeight: '500',
-      transform: 'rotate(45deg)',
-      width: '80px',
-      height: '80px',
-    },
-  },
-];
-
-const initialEdges: Edge[] = [
-  {
-    id: 'e1-2',
-    source: '1',
-    target: '2',
-    type: 'straight',
-    style: { stroke: 'hsl(var(--primary))', strokeWidth: 2 },
-    label: 'COPY',
-    labelStyle: { fontSize: '10px', fontWeight: '500' },
-  },
-  {
-    id: 'e1-3',
-    source: '1',
-    target: '3',
-    type: 'straight',
-    style: { stroke: 'hsl(var(--destructive))', strokeWidth: 2, strokeDasharray: '8,4' },
-    label: 'CALL (Missing)',
-    labelStyle: { fontSize: '10px', fontWeight: '500', fill: 'hsl(var(--destructive))' },
-  },
-  {
-    id: 'e1-4',
-    source: '1',
-    target: '4',
-    type: 'straight',
-    style: { stroke: 'hsl(var(--primary))', strokeWidth: 2, strokeDasharray: '5,5' },
-    label: 'CALL',
-    labelStyle: { fontSize: '10px', fontWeight: '500' },
-  },
-];
+import { Eye, EyeOff, Loader, AlertCircle } from 'lucide-react';
+import { apiService, SessionManager, GraphData } from '@/services/api';
 
 export const DependencyGraph: React.FC = () => {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [showMiniMap, setShowMiniMap] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
   );
+
+  // Load graph data from API
+  useEffect(() => {
+    const loadGraphData = async () => {
+      try {
+        const jobId = SessionManager.getJobId();
+        if (!jobId) {
+          setError('No analysis session found');
+          setLoading(false);
+          return;
+        }
+
+        const graphData = await apiService.getGraphData(jobId);
+        setNodes(graphData.nodes);
+        setEdges(graphData.edges);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to load graph data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load dependency graph');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadGraphData();
+  }, [setNodes, setEdges]);
 
   // Calculate minimap size based on node count
   const minimapSize = useMemo(() => {
@@ -128,6 +65,41 @@ export const DependencyGraph: React.FC = () => {
     }
     return { width: 200, height: 120 };
   }, [nodes.length]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-center space-y-2">
+          <Loader className="w-6 h-6 animate-spin mx-auto text-primary" />
+          <p className="text-sm text-muted-foreground">Loading dependency graph...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-center space-y-2">
+          <AlertCircle className="w-6 h-6 mx-auto text-destructive" />
+          <p className="text-sm text-muted-foreground">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state
+  if (nodes.length === 0) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-center space-y-2">
+          <p className="text-sm text-muted-foreground">No dependencies found</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full relative">

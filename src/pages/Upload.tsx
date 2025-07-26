@@ -9,11 +9,15 @@ import { ArrowRight, Upload as UploadIcon, GitBranch } from 'lucide-react';
 import { NavigationHeader } from '@/components/NavigationHeader';
 import { BreadcrumbNavigation } from '@/components/BreadcrumbNavigation';
 import { ProgressIndicator } from '@/components/ProgressIndicator';
+import { apiService, SessionManager } from '@/services/api';
+import { useToast } from '@/hooks/use-toast';
 
 const Upload = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [repositories, setRepositories] = useState<string[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const handleFilesSelected = (files: File[]) => {
     setUploadedFiles(prev => [...prev, ...files]);
@@ -23,10 +27,54 @@ const Upload = () => {
     setRepositories(prev => [...prev, url]);
   };
 
-  const handleStartAnalysis = () => {
-    if (uploadedFiles.length > 0 || repositories.length > 0) {
+  const handleStartAnalysis = async () => {
+    if (uploadedFiles.length === 0 && repositories.length === 0) {
+      toast({
+        title: "No files uploaded",
+        description: "Please upload COBOL files or connect a repository before starting analysis.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const jobId = SessionManager.getJobId();
+    console.log('Starting analysis with jobId:', jobId);
+    if (!jobId) {
+      toast({
+        title: "No active session",
+        description: "Please upload files first to start analysis.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsAnalyzing(true);
+
+    try {
+      // Start analysis
+      console.log('Calling analyzeFiles API with jobId:', jobId);
+      const analysisResult = await apiService.analyzeFiles(jobId);
+      
+      // Cache the analysis results
+      SessionManager.cacheAnalysis(analysisResult);
+      
+      toast({
+        title: "Analysis completed",
+        description: "COBOL files have been analyzed successfully. Redirecting to dashboard.",
+      });
+
       // Navigate to dashboard page to show analysis results
       navigate('/dashboard');
+      
+    } catch (error) {
+      console.error('Analysis error:', error);
+      toast({
+        title: "Analysis failed",
+        description: error instanceof Error ? error.message : 'Failed to analyze files',
+        variant: "destructive"
+      });
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -107,11 +155,20 @@ const Upload = () => {
                   variant="hero" 
                   size="lg" 
                   onClick={handleStartAnalysis}
-                  disabled={uploadedFiles.length === 0 && repositories.length === 0}
+                  disabled={isAnalyzing || (uploadedFiles.length === 0 && repositories.length === 0)}
                   className="group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Start Modernization Analysis
-                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                  {isAnalyzing ? (
+                    <>
+                      <div className="w-4 h-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent mr-2" />
+                      Analyzing Files...
+                    </>
+                  ) : (
+                    <>
+                      Start Modernization Analysis
+                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    </>
+                  )}
                 </Button>
               </div>
             )}

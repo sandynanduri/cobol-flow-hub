@@ -1,0 +1,128 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. EMPLOYEE.
+       AUTHOR. COBOL FLOW HUB.
+       DATE-WRITTEN. 2025-01-26.
+      *
+      * EMPLOYEE MANAGEMENT SYSTEM
+      * PROCESSES EMPLOYEE RECORDS AND CALCULATES PAYROLL
+      *
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. IBM-PC.
+       OBJECT-COMPUTER. IBM-PC.
+       
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT EMP-FILE ASSIGN TO "EMPLOYEE.DAT"
+               ORGANIZATION IS SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL
+               FILE STATUS IS WS-FILE-STATUS.
+           
+           SELECT PAY-FILE ASSIGN TO "PAYROLL.DAT"
+               ORGANIZATION IS SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL
+               FILE STATUS IS WS-PAY-STATUS.
+
+       DATA DIVISION.
+       FILE SECTION.
+       FD  EMP-FILE.
+       01  EMP-RECORD.
+           COPY EMPLOYEE-RECORD.
+           
+       FD  PAY-FILE.
+       01  PAY-RECORD.
+           05  PAY-EMP-ID         PIC X(6).
+           05  PAY-GROSS-SALARY   PIC 9(7)V99.
+           05  PAY-TAX            PIC 9(5)V99.
+           05  PAY-NET-SALARY     PIC 9(7)V99.
+
+       WORKING-STORAGE SECTION.
+       01  WS-CONTROL-FIELDS.
+           05  WS-FILE-STATUS     PIC XX.
+           05  WS-PAY-STATUS      PIC XX.
+           05  WS-EOF-FLAG        PIC X VALUE 'N'.
+           05  WS-RECORD-COUNT    PIC 9(4) VALUE 0.
+           
+       01  WS-CALCULATION-FIELDS.
+           05  WS-GROSS-PAY       PIC 9(7)V99.
+           05  WS-TAX-AMOUNT      PIC 9(5)V99.
+           05  WS-NET-PAY         PIC 9(7)V99.
+           05  WS-TAX-RATE        PIC V999 VALUE .15.
+           
+       COPY EMPLOYEE-CONSTANTS.
+
+       PROCEDURE DIVISION.
+       MAIN-PROCESS.
+           PERFORM INITIALIZATION
+           PERFORM PROCESS-EMPLOYEES
+           PERFORM TERMINATION
+           STOP RUN.
+
+       INITIALIZATION.
+           OPEN INPUT EMP-FILE
+           OPEN OUTPUT PAY-FILE
+           
+           IF WS-FILE-STATUS NOT = '00'
+               DISPLAY 'ERROR OPENING EMPLOYEE FILE: ' WS-FILE-STATUS
+               STOP RUN
+           END-IF
+           
+           IF WS-PAY-STATUS NOT = '00'  
+               DISPLAY 'ERROR OPENING PAYROLL FILE: ' WS-PAY-STATUS
+               STOP RUN
+           END-IF
+           
+           DISPLAY 'EMPLOYEE PAYROLL PROCESSING STARTED'.
+
+       PROCESS-EMPLOYEES.
+           PERFORM READ-EMPLOYEE
+           PERFORM UNTIL WS-EOF-FLAG = 'Y'
+               PERFORM CALCULATE-PAYROLL
+               PERFORM WRITE-PAYROLL
+               PERFORM READ-EMPLOYEE
+           END-PERFORM.
+
+       READ-EMPLOYEE.
+           READ EMP-FILE
+               AT END
+                   MOVE 'Y' TO WS-EOF-FLAG
+               NOT AT END
+                   ADD 1 TO WS-RECORD-COUNT
+           END-READ.
+
+       CALCULATE-PAYROLL.
+           MOVE EMP-SALARY TO WS-GROSS-PAY
+           
+           IF EMP-DEPT-CODE = 'MGMT'
+               PERFORM MANAGER-BONUS
+           END-IF
+           
+           COMPUTE WS-TAX-AMOUNT = WS-GROSS-PAY * WS-TAX-RATE
+           COMPUTE WS-NET-PAY = WS-GROSS-PAY - WS-TAX-AMOUNT
+           
+           CALL 'TAX-CALC' USING WS-GROSS-PAY WS-TAX-AMOUNT
+           CALL 'AUDIT-LOG' USING EMP-ID EMP-NAME WS-NET-PAY.
+
+       MANAGER-BONUS.
+           IF EMP-YEARS-SERVICE > 5
+               COMPUTE WS-GROSS-PAY = WS-GROSS-PAY * 1.10
+           END-IF.
+
+       WRITE-PAYROLL.
+           MOVE EMP-ID TO PAY-EMP-ID
+           MOVE WS-GROSS-PAY TO PAY-GROSS-SALARY
+           MOVE WS-TAX-AMOUNT TO PAY-TAX
+           MOVE WS-NET-PAY TO PAY-NET-SALARY
+           
+           WRITE PAY-RECORD
+           
+           IF WS-PAY-STATUS NOT = '00'
+               DISPLAY 'ERROR WRITING PAYROLL RECORD: ' WS-PAY-STATUS
+           END-IF.
+
+       TERMINATION.
+           CLOSE EMP-FILE
+           CLOSE PAY-FILE
+           
+           DISPLAY 'TOTAL EMPLOYEES PROCESSED: ' WS-RECORD-COUNT
+           DISPLAY 'PAYROLL PROCESSING COMPLETED'. 

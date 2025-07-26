@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationHeader } from '@/components/NavigationHeader';
 import { BreadcrumbNavigation } from '@/components/BreadcrumbNavigation';
 import { ProgressIndicator } from '@/components/ProgressIndicator';
@@ -15,10 +15,17 @@ import {
   AlertTriangle,
   CheckCircle,
   Code,
-  ArrowRight
+  ArrowRight,
+  Loader
 } from 'lucide-react';
+import { apiService, SessionManager, AnalysisResponse } from '@/services/api';
+import { useToast } from '@/hooks/use-toast';
 
 const Dashboard = () => {
+  const { toast } = useToast();
+  const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const progressSteps = [
     {
@@ -45,45 +52,175 @@ const Dashboard = () => {
 
   const currentStep = 1; // Analyze step
 
-  // Mock data for the analysis results
-  const fileClassification = [
-    { category: 'COBOL Programs', count: 1, files: ['BRAKES.CBL'] },
-    { category: 'Copybooks', count: 0, files: [] },
-    { category: 'Total LOC', count: 103, files: [] },
-    { category: 'External CALLs', count: 2, files: ['CALL "TAX01"', 'CALL "UTIL01"'] },
-    { category: 'COPY statements', count: 1, files: ['COPY "EMPLOYEE.CPY"'] }
-  ];
+  // Load analysis data on component mount
+  useEffect(() => {
+    const loadAnalysis = async () => {
+      try {
+        // First try to get cached analysis
+        let analysisData = SessionManager.getCachedAnalysis();
+        
+        if (!analysisData) {
+          // If no cache, get from backend
+          const jobId = SessionManager.getJobId();
+          if (!jobId) {
+            setError('No analysis session found. Please upload files first.');
+            setLoading(false);
+            return;
+          }
+          
+          analysisData = await apiService.getAnalysis(jobId);
+          SessionManager.cacheAnalysis(analysisData);
+        }
+        
+        setAnalysis(analysisData);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to load analysis:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load analysis data');
+        toast({
+          title: "Failed to load analysis",
+          description: "Could not retrieve analysis data. Please try running analysis again.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const extractedInsights = [
-    { type: 'Programs with PERFORM THRU', value: '1' },
-    { type: 'Paragraphs Detected', value: '12' },
-    { type: 'File I/O Detected', value: 'Yes (OPEN INPUT CUSTOMER)' },
-    { type: 'VSAM or SEQUENTIAL', value: 'SEQUENTIAL' },
-    { type: 'JCL Mapping', value: 'Not detected (since no JCL uploaded)' }
-  ];
+    loadAnalysis();
+  }, [toast]);
 
-  const missingFiles = ['EMPLOYEE.CPY'];
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <NavigationHeader showBackButton={true} />
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center space-y-4">
+              <Loader className="w-8 h-8 animate-spin mx-auto text-primary" />
+              <h2 className="text-xl font-semibold">Loading Analysis Results...</h2>
+              <p className="text-muted-foreground">Please wait while we retrieve your COBOL analysis data.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error || !analysis) {
+    return (
+      <div className="min-h-screen bg-background">
+        <NavigationHeader showBackButton={true} />
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center space-y-4">
+              <AlertTriangle className="w-8 h-8 mx-auto text-destructive" />
+              <h2 className="text-xl font-semibold">Analysis Not Found</h2>
+              <p className="text-muted-foreground">{error || 'No analysis data available.'}</p>
+              <Button onClick={() => window.location.href = '/upload'}>
+                Return to Upload
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Extract data from analysis response
+  const fileClassification = analysis.fileClassification || [];
+  const missingFiles = analysis.missingFiles || [];
+
+  const handleAction = async (actionType: string) => {
+    const jobId = SessionManager.getJobId();
+    if (!jobId) {
+      toast({
+        title: "No active session",
+        description: "Please upload files first.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      switch (actionType) {
+        case 'view-code':
+          // Navigate to detailed file analysis (could be a new page)
+          toast({
+            title: "Feature coming soon",
+            description: "Detailed code analysis view is being developed.",
+          });
+          break;
+
+        case 'convert':
+          const conversionResult = await apiService.convertToLanguage(jobId, 'java');
+          toast({
+            title: "Conversion plan generated",
+            description: "Java conversion plan has been created.",
+          });
+          console.log('Conversion result:', conversionResult);
+          break;
+
+        case 'mapping':
+          const mappingBlob = await apiService.getMappingTable(jobId, 'java');
+          apiService.downloadFile(mappingBlob, `cobol-java-mapping-${jobId}.json`);
+          toast({
+            title: "Mapping table downloaded",
+            description: "COBOL to Java mapping table has been exported.",
+          });
+          break;
+
+        case 'export':
+          const metadataBlob = await apiService.exportMetadata(jobId);
+          apiService.downloadFile(metadataBlob, `cobol-analysis-${jobId}.json`);
+          toast({
+            title: "Analysis exported",
+            description: "Complete analysis metadata has been downloaded.",
+          });
+          break;
+
+        default:
+          toast({
+            title: "Action not implemented",
+            description: "This feature is being developed.",
+          });
+      }
+    } catch (error) {
+      console.error('Action failed:', error);
+      toast({
+        title: "Action failed",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive"
+      });
+    }
+  };
 
   const actions = [
     {
+      id: 'view-code',
       icon: FileCode,
       title: 'View Code & Extract Pseudo-code',
       description: 'Go to paragraph-by-paragraph logic breakdown',
       variant: 'default' as const
     },
     {
+      id: 'convert',
       icon: Settings,
       title: 'Convert to Java/Python',
       description: 'Run LLM/codegen pipeline to generate output',
       variant: 'secondary' as const
     },
     {
+      id: 'mapping',
       icon: FileText,
       title: 'Generate Mapping Report',
       description: 'Show table: COBOL → Function → Summary',
       variant: 'outline' as const
     },
     {
+      id: 'export',
       icon: Download,
       title: 'Export JSON Summary',
       description: 'Download metadata.json for audit',
@@ -213,40 +350,7 @@ const Dashboard = () => {
               </CardContent>
             </Card>
 
-            {/* Section 3: Extracted Insights */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                  Extracted Insights
-                </CardTitle>
-                <CardDescription>
-                  Key patterns and structures identified by AI analysis
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Value</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {extractedInsights.map((insight, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{insight.type}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{insight.value}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-
-            {/* Section 4: Actions */}
+            {/* Section 3: Actions */}
             <Card>
               <CardHeader>
                 <CardTitle>Next Steps</CardTitle>
@@ -261,6 +365,7 @@ const Dashboard = () => {
                       key={index}
                       variant={action.variant}
                       className="h-auto p-4 flex flex-col items-start gap-2 text-left"
+                      onClick={() => handleAction(action.id)}
                     >
                       <div className="flex items-center gap-2 w-full">
                         <action.icon className="w-5 h-5" />
@@ -294,19 +399,24 @@ const Dashboard = () => {
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Files Analyzed</span>
-                    <Badge>1</Badge>
+                    <Badge>{analysis.files?.length || 0}</Badge>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Lines of Code</span>
-                    <Badge>103</Badge>
+                    <Badge>{analysis.summary?.totalLOC || 0}</Badge>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Complexity Score</span>
-                    <Badge variant="secondary">Medium</Badge>
+                    <Badge variant={
+                      analysis.complexity === 'HIGH' ? 'destructive' : 
+                      analysis.complexity === 'MEDIUM' ? 'secondary' : 'default'
+                    }>
+                      {analysis.complexity || 'Unknown'}
+                    </Badge>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Est. Effort</span>
-                    <Badge variant="outline">2-3 Days</Badge>
+                    <Badge variant="outline">{analysis.estimatedEffort || 'TBD'}</Badge>
                   </div>
                 </div>
               </div>

@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import { apiService, SessionManager } from '@/services/api';
 
 interface FileUploadProps {
   onFilesSelected: (files: File[]) => void;
@@ -41,7 +42,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     }
   }, []);
 
-  const processFiles = useCallback((files: File[]) => {
+  const processFiles = useCallback(async (files: File[]) => {
     const validFiles: File[] = [];
     const invalidFiles: FileWithError[] = [];
 
@@ -66,43 +67,71 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
     if (invalidFiles.length > 0) {
       setRejectedFiles(prev => [...prev, ...invalidFiles]);
+      toast({
+        title: `${invalidFiles.length} file(s) rejected`,
+        description: invalidFiles.map(f => f.error).join(', '),
+        variant: "destructive"
+      });
     }
 
     if (validFiles.length > 0) {
       setIsUploading(true);
       setUploadProgress(0);
 
-      // Simulate upload progress if showProgress is enabled
-      if (showProgress) {
-        const interval = setInterval(() => {
-          setUploadProgress(prev => {
-            if (prev >= 100) {
-              clearInterval(interval);
-              setIsUploading(false);
-              return 100;
-            }
-            return prev + 10;
-          });
-        }, 100);
-      } else {
+      try {
+        // Get or generate job ID
+        let jobId = SessionManager.getJobId();
+        if (!jobId) {
+          jobId = SessionManager.generateJobId();
+          SessionManager.setJobId(jobId);
+        }
+
+        // Show upload progress if enabled
+        let progressInterval: NodeJS.Timeout | undefined;
+        if (showProgress) {
+          progressInterval = setInterval(() => {
+            setUploadProgress(prev => Math.min(prev + 10, 90));
+          }, 200);
+        }
+
+        // Actually upload files to backend
+        console.log('Uploading files with jobId:', jobId);
+        const uploadResponse = await apiService.uploadFiles(validFiles, jobId);
+        console.log('Upload response:', uploadResponse);
+        
+        // Ensure the jobId is stored
+        SessionManager.setJobId(uploadResponse.jobId);
+        
+        // Complete progress
+        if (progressInterval) {
+          clearInterval(progressInterval);
+        }
+        setUploadProgress(100);
+        
+        setTimeout(() => {
+          setIsUploading(false);
+          setUploadProgress(0);
+        }, 500);
+
+        setUploadedFiles(prev => [...prev, ...validFiles]);
+        onFilesSelected(validFiles);
+        
+        toast({
+          title: "Files uploaded successfully",
+          description: `${validFiles.length} COBOL file(s) uploaded and ready for analysis.`
+        });
+
+      } catch (error) {
+        console.error('Upload error:', error);
         setIsUploading(false);
+        setUploadProgress(0);
+        
+        toast({
+          title: "Upload failed",
+          description: error instanceof Error ? error.message : 'Failed to upload files',
+          variant: "destructive"
+        });
       }
-
-      setUploadedFiles(prev => [...prev, ...validFiles]);
-      onFilesSelected(validFiles);
-      
-      toast({
-        title: "Files uploaded successfully",
-        description: `${validFiles.length} COBOL file(s) ready for modernization.`
-      });
-    }
-
-    if (invalidFiles.length > 0) {
-      toast({
-        title: `${invalidFiles.length} file(s) rejected`,
-        description: invalidFiles.map(f => f.error).join(', '),
-        variant: "destructive"
-      });
     }
   }, [onFilesSelected, toast, maxFileSize, maxFileSizeBytes, showProgress]);
 
@@ -112,12 +141,12 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     setDragActive(false);
 
     const files = Array.from(e.dataTransfer.files);
-    processFiles(files);
+    processFiles(files).catch(console.error);
   }, [processFiles]);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    processFiles(files);
+    processFiles(files).catch(console.error);
     
     // Reset input to allow re-selecting the same files
     e.target.value = '';
