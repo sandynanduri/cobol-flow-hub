@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { NavigationHeader } from '@/components/NavigationHeader';
 import { BreadcrumbNavigation } from '@/components/BreadcrumbNavigation';
 import { ProgressIndicator } from '@/components/ProgressIndicator';
@@ -6,11 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { DependencyGraph } from '@/components/DependencyGraph';
 import { 
   FileCode, 
-  Eye, 
   Settings, 
   FileText, 
   Download, 
@@ -21,7 +19,6 @@ import {
 } from 'lucide-react';
 
 const Dashboard = () => {
-  const [showFilePreview, setShowFilePreview] = useState(false);
 
   const progressSteps = [
     {
@@ -69,7 +66,7 @@ const Dashboard = () => {
 
   const actions = [
     {
-      icon: Eye,
+      icon: FileCode,
       title: 'View Code & Extract Pseudo-code',
       description: 'Go to paragraph-by-paragraph logic breakdown',
       variant: 'default' as const
@@ -122,21 +119,9 @@ const Dashboard = () => {
                   <FileCode className="w-5 h-5" />
                   File Classification Summary
                 </CardTitle>
-                <div className="flex items-center justify-between">
-                  <CardDescription>
-                    Overview of uploaded files and detected patterns
-                  </CardDescription>
-                  <div className="flex items-center gap-2">
-                    <label htmlFor="preview-toggle" className="text-sm font-medium">
-                      Preview Files
-                    </label>
-                    <Switch
-                      id="preview-toggle"
-                      checked={showFilePreview}
-                      onCheckedChange={setShowFilePreview}
-                    />
-                  </div>
-                </div>
+                <CardDescription>
+                  Overview of uploaded files and detected patterns
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -145,7 +130,6 @@ const Dashboard = () => {
                       <TableHead>Category</TableHead>
                       <TableHead className="text-center">Count</TableHead>
                       <TableHead>File Names</TableHead>
-                      {showFilePreview && <TableHead>Preview</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -168,58 +152,11 @@ const Dashboard = () => {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
-                        {showFilePreview && (
-                          <TableCell>
-                            {row.files.length > 0 && row.category === 'COBOL Programs' ? (
-                              <Button variant="outline" size="sm" className="h-6 px-2 text-xs">
-                                <Eye className="w-3 h-3 mr-1" />
-                                View
-                              </Button>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            )}
-                          </TableCell>
-                        )}
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
 
-                {/* File Preview Section */}
-                {showFilePreview && (
-                  <div className="mt-6 space-y-4">
-                    <h4 className="text-sm font-medium text-foreground">File Content Preview</h4>
-                    <Card className="bg-muted/50">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm">BRAKES.CBL</CardTitle>
-                          <Badge variant="secondary" className="text-xs">103 LOC</Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="bg-background rounded-md p-3 font-mono text-xs overflow-x-auto">
-                          <div className="space-y-1 text-muted-foreground">
-                            <div><span className="text-blue-600">IDENTIFICATION DIVISION.</span></div>
-                            <div><span className="text-blue-600">PROGRAM-ID.</span> BRAKES.</div>
-                            <div><span className="text-blue-600">DATA DIVISION.</span></div>
-                            <div><span className="text-blue-600">WORKING-STORAGE SECTION.</span></div>
-                            <div>01 WS-EMPLOYEE-RECORD.</div>
-                            <div>&nbsp;&nbsp;&nbsp;05 WS-EMP-ID PIC 9(6).</div>
-                            <div>&nbsp;&nbsp;&nbsp;05 WS-EMP-NAME PIC X(30).</div>
-                            <div><span className="text-green-600">* Main processing logic</span></div>
-                            <div><span className="text-blue-600">PROCEDURE DIVISION.</span></div>
-                            <div>MAIN-PARA.</div>
-                            <div>&nbsp;&nbsp;&nbsp;<span className="text-purple-600">PERFORM</span> READ-customer <span className="text-purple-600">THRU</span> process-data.</div>
-                            <div>&nbsp;&nbsp;&nbsp;<span className="text-purple-600">CALL</span> <span className="text-red-600">"TAX01"</span>.</div>
-                            <div>&nbsp;&nbsp;&nbsp;<span className="text-purple-600">CALL</span> <span className="text-red-600">"UTIL01"</span>.</div>
-                            <div>&nbsp;&nbsp;&nbsp;<span className="text-purple-600">COPY</span> <span className="text-red-600">"EMPLOYEE.CPY"</span>.</div>
-                            <div className="text-muted-foreground">...</div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                )}
 
                 {/* Missing Files Alert */}
                 {missingFiles.length > 0 && (
