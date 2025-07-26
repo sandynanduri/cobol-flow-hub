@@ -86,7 +86,11 @@ const Upload = () => {
               </TabsList>
               
               <TabsContent value="upload" className="animate-fade-in">
-                <FileUpload onFilesSelected={handleFilesSelected} />
+                <FileUpload 
+                  onFilesSelected={handleFilesSelected} 
+                  maxFileSize={5}
+                  showProgress={true}
+                />
               </TabsContent>
               
               <TabsContent value="repository" className="animate-fade-in">
@@ -101,7 +105,8 @@ const Upload = () => {
                   variant="hero" 
                   size="lg" 
                   onClick={handleStartAnalysis}
-                  className="group"
+                  disabled={uploadedFiles.length === 0 && repositories.length === 0}
+                  className="group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Start Modernization Analysis
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
