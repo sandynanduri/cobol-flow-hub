@@ -40,13 +40,10 @@ export const Hero: React.FC = () => {
           </div>
 
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <div className="flex justify-center items-center">
             <Button variant="hero" size="lg" className="group" onClick={handleGetStarted}>
               Get Started Now
               <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-            </Button>
-            <Button variant="outline" size="lg">
-              Watch Demo
             </Button>
           </div>
 
