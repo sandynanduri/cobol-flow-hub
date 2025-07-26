@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { NavigationHeader } from '@/components/NavigationHeader';
 import { BreadcrumbNavigation } from '@/components/BreadcrumbNavigation';
 import { ProgressIndicator } from '@/components/ProgressIndicator';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DependencyGraph } from '@/components/DependencyGraph';
 import { 
   FileCode, 
@@ -16,7 +17,8 @@ import {
   CheckCircle,
   Code,
   ArrowRight,
-  Loader
+  Loader,
+  ChevronDown
 } from 'lucide-react';
 import { apiService, SessionManager, AnalysisResponse } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +26,7 @@ import { useToast } from '@/hooks/use-toast';
 const Dashboard = () => {
   const { toast } = useToast();
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [selectedProgram, setSelectedProgram] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,6 +76,13 @@ const Dashboard = () => {
         }
         
         setAnalysis(analysisData);
+        
+        // Set default selected program to the first COBOL program
+        const programs = getCobolPrograms(analysisData);
+        if (programs.length > 0 && !selectedProgram) {
+          setSelectedProgram(programs[0].fileName);
+        }
+        
         setError(null);
       } catch (err) {
         console.error('Failed to load analysis:', err);
@@ -88,7 +98,7 @@ const Dashboard = () => {
     };
 
     loadAnalysis();
-  }, [toast]);
+  }, [toast, selectedProgram]);
 
   // Show loading state
   if (loading) {
@@ -129,9 +139,79 @@ const Dashboard = () => {
     );
   }
 
+  // Helper function to get COBOL programs from analysis
+  const getCobolPrograms = (analysisData: AnalysisResponse) => {
+    return (analysisData?.files || []).filter(file => 
+      file.type === 'program' && 
+      (file.fileName.endsWith('.cbl') || file.fileName.endsWith('.cobol') || file.fileName.endsWith('.cob'))
+    );
+  };
+
+  // Get filtered data based on selected program
+  const filteredData = useMemo(() => {
+    if (!analysis || !selectedProgram) {
+      return {
+        fileClassification: analysis?.fileClassification || [],
+        missingFiles: analysis?.missingFiles || [],
+        programData: null,
+        totalLOC: analysis?.summary?.totalLOC || 0
+      };
+    }
+
+    const selectedFile = analysis.files?.find(file => file.fileName === selectedProgram);
+    if (!selectedFile) {
+      return {
+        fileClassification: analysis.fileClassification || [],
+        missingFiles: analysis.missingFiles || [],
+        programData: null,
+        totalLOC: analysis.summary?.totalLOC || 0
+      };
+    }
+
+    // Create program-specific file classification
+    const programSpecificClassification = [
+      {
+        category: 'Selected Program',
+        count: 1,
+        files: [selectedFile.fileName]
+      },
+      {
+        category: 'Lines of Code',
+        count: selectedFile.loc || 0,
+        files: []
+      },
+      {
+        category: 'COPY Dependencies',
+        count: selectedFile.dependencies?.copy?.length || 0,
+        files: selectedFile.dependencies?.copy || []
+      },
+      {
+        category: 'CALL Dependencies',
+        count: selectedFile.dependencies?.call?.length || 0,
+        files: selectedFile.dependencies?.call || []
+      }
+    ];
+
+    // Filter missing files to only those referenced by selected program
+    const programMissingFiles = [
+      ...(selectedFile.dependencies?.copy || []),
+      ...(selectedFile.dependencies?.call || [])
+    ].filter(dep => 
+      (analysis.missingFiles || []).includes(dep)
+    );
+
+    return {
+      fileClassification: programSpecificClassification,
+      missingFiles: programMissingFiles,
+      programData: selectedFile,
+      totalLOC: selectedFile.loc || 0
+    };
+  }, [analysis, selectedProgram]);
+
   // Extract data from analysis response
-  const fileClassification = analysis.fileClassification || [];
-  const missingFiles = analysis.missingFiles || [];
+  const fileClassification = filteredData.fileClassification;
+  const missingFiles = filteredData.missingFiles;
+  const programs = analysis ? getCobolPrograms(analysis) : [];
 
   const handleAction = async (actionType: string) => {
     const jobId = SessionManager.getJobId();
@@ -238,26 +318,58 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-3 space-y-8">
-            {/* Top Header */}
-            <div className="text-center space-y-2">
+            {/* Top Header with Program Selector */}
+            <div className="text-center space-y-4">
               <h1 className="text-3xl md:text-4xl font-bold text-foreground flex items-center justify-center gap-2">
                 <Code className="w-8 h-8 text-primary" />
-                Modernization Analysis for Job_20250726_1445
+                Modernization Analysis Dashboard
               </h1>
+              
+              {/* Program Selector */}
+              {programs.length > 1 && (
+                <div className="flex items-center justify-center gap-3">
+                  <span className="text-sm font-medium text-muted-foreground">Select Main Program:</span>
+                  <Select value={selectedProgram} onValueChange={setSelectedProgram}>
+                    <SelectTrigger className="w-[300px]">
+                      <SelectValue placeholder="Choose a COBOL program" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {programs.map((program) => (
+                        <SelectItem key={program.fileName} value={program.fileName}>
+                          <div className="flex items-center gap-2">
+                            <FileCode className="w-4 h-4" />
+                            <span>{program.fileName}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {program.loc} LOC
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
               <p className="text-muted-foreground">
-                Analysis complete • Ready for modernization planning
+                {programs.length > 1 
+                  ? `Analyzing ${selectedProgram || 'selected program'} • ${programs.length} programs total`
+                  : 'Analysis complete • Ready for modernization planning'
+                }
               </p>
             </div>
 
-            {/* Section 1: File Classification Summary */}
+            {/* Section 1: Program Analysis Summary */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileCode className="w-5 h-5" />
-                  File Classification Summary
+                  {programs.length > 1 ? 'Program-Specific Analysis' : 'File Classification Summary'}
                 </CardTitle>
                 <CardDescription>
-                  Overview of uploaded files and detected patterns
+                  {programs.length > 1 
+                    ? `Detailed analysis for ${selectedProgram || 'selected program'}`
+                    : 'Overview of uploaded files and detected patterns'
+                  }
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -320,9 +432,17 @@ const Dashboard = () => {
                 <CardTitle className="flex items-center gap-2">
                   <div className="w-5 h-5 border-2 border-primary rounded"></div>
                   Dependency Graph
+                  {programs.length > 1 && selectedProgram && (
+                    <Badge variant="outline" className="ml-2">
+                      {selectedProgram}
+                    </Badge>
+                  )}
                 </CardTitle>
                 <CardDescription>
-                  Visual representation of file dependencies and relationships
+                  {programs.length > 1 
+                    ? `Dependencies and relationships for ${selectedProgram || 'selected program'}`
+                    : 'Visual representation of file dependencies and relationships'
+                  }
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -395,29 +515,59 @@ const Dashboard = () => {
 
               {/* Quick Stats */}
               <div className="p-6 rounded-lg border bg-card">
-                <h3 className="text-lg font-semibold mb-4">Analysis Summary</h3>
+                <h3 className="text-lg font-semibold mb-4">
+                  {programs.length > 1 ? 'Program Summary' : 'Analysis Summary'}
+                </h3>
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Files Analyzed</span>
-                    <Badge>{analysis.files?.length || 0}</Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Lines of Code</span>
-                    <Badge>{analysis.summary?.totalLOC || 0}</Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Complexity Score</span>
-                    <Badge variant={
-                      analysis.complexity === 'HIGH' ? 'destructive' : 
-                      analysis.complexity === 'MEDIUM' ? 'secondary' : 'default'
-                    }>
-                      {analysis.complexity || 'Unknown'}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Est. Effort</span>
-                    <Badge variant="outline">{analysis.estimatedEffort || 'TBD'}</Badge>
-                  </div>
+                  {programs.length > 1 ? (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Total Programs</span>
+                        <Badge>{programs.length}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Selected Program LOC</span>
+                        <Badge>{filteredData.totalLOC}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Dependencies</span>
+                        <Badge>{
+                          (filteredData.programData?.dependencies?.copy?.length || 0) +
+                          (filteredData.programData?.dependencies?.call?.length || 0)
+                        }</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Missing Files</span>
+                        <Badge variant={missingFiles.length > 0 ? 'destructive' : 'default'}>
+                          {missingFiles.length}
+                        </Badge>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Files Analyzed</span>
+                        <Badge>{analysis.files?.length || 0}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Lines of Code</span>
+                        <Badge>{analysis.summary?.totalLOC || 0}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Complexity Score</span>
+                        <Badge variant={
+                          analysis.complexity === 'HIGH' ? 'destructive' : 
+                          analysis.complexity === 'MEDIUM' ? 'secondary' : 'default'
+                        }>
+                          {analysis.complexity || 'Unknown'}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Est. Effort</span>
+                        <Badge variant="outline">{analysis.estimatedEffort || 'TBD'}</Badge>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
