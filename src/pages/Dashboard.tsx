@@ -18,13 +18,16 @@ import {
   Code,
   ArrowRight,
   Loader,
-  ChevronDown
+  ChevronDown,
+  Eye
 } from 'lucide-react';
 import { apiService, SessionManager, AnalysisResponse } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [selectedProgram, setSelectedProgram] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -379,6 +382,7 @@ const Dashboard = () => {
                       <TableHead>Category</TableHead>
                       <TableHead className="text-center">Count</TableHead>
                       <TableHead>File Names</TableHead>
+                      <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -395,6 +399,35 @@ const Dashboard = () => {
                                 <Badge key={fileIndex} variant="outline" className="text-xs">
                                   {file}
                                 </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {row.files.length > 0 && row.category === 'Selected Program' ? (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => navigate(`/file-preview?file=${encodeURIComponent(row.files[0])}`)}
+                              className="flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              Preview
+                            </Button>
+                          ) : row.files.length > 0 && (row.category.includes('COPY') || row.category.includes('CALL')) ? (
+                            <div className="flex flex-wrap gap-1">
+                              {row.files.map((file, fileIndex) => (
+                                <Button 
+                                  key={fileIndex}
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => navigate(`/file-preview?file=${encodeURIComponent(file)}`)}
+                                  className="h-6 px-2 text-xs"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                </Button>
                               ))}
                             </div>
                           ) : (
